@@ -8,7 +8,7 @@ Não é um programa oficial do LivePix.
 
 ## Baixar
 
-Baixe o `LivePixListener-Setup.exe` na página de Releases. Ele instala só para o seu usuário, sem senha de administrador.
+Baixe o [LivePixListener-Setup.exe](https://github.com/MajorrLuke/livepix-listener/releases/latest/download/LivePixListener-Setup.exe). Ele instala só para o seu usuário, sem senha de administrador. A página da versão fica em [Releases](https://github.com/MajorrLuke/livepix-listener/releases).
 
 SHA256: `1a9a29dc5424ab73b397200f1c7ca2cf675ac0d4ce66bf349fa61b26d03e453c`
 
