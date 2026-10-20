@@ -10,7 +10,7 @@ Não é um programa oficial do LivePix.
 
 Baixe o [LivePixListener-Setup.exe](https://github.com/MajorrLuke/livepix-listener/releases/latest/download/LivePixListener-Setup.exe). Ele instala só para o seu usuário, sem senha de administrador. A página da versão fica em [Releases](https://github.com/MajorrLuke/livepix-listener/releases).
 
-SHA256: `1a9a29dc5424ab73b397200f1c7ca2cf675ac0d4ce66bf349fa61b26d03e453c`
+SHA256: `08841e50843fdbcf42891e3172308ccf9e6c5e165e8d34ea0bd8adde52063b82`
 
 Na instalação, **Iniciar com o Windows** já vem marcado. Pode desmarcar. Depois dá para mudar de novo na janela do programa, no ícone da bandeja.
 
@@ -31,6 +31,8 @@ No widget, deixe ligados **Tocar som de alerta** e **Ler as mensagens usando Tex
 O volume da janela multiplica o volume que você já configurou no LivePix. `100%` aqui é o volume original do widget.
 
 **Testar som** baixa e toca o som de alerta desse widget, sem esperar uma doação.
+
+A janela guarda os alertas que tocaram: hora, nome, valor e mensagem. A lista fica em `%AppData%\LivePixListener\alerts.json` e continua lá depois de fechar o programa. **Limpar** apaga esse histórico. Remover o programa não apaga essa lista nem o link do widget.
 
 **Iniciar com o Windows** cria um atalho na pasta Inicializar do seu usuário. Se a instalação já marcou isso, a opção aparece ligada.
 

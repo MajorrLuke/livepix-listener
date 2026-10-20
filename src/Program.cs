@@ -23,7 +23,7 @@ namespace LivePixListener
 {
     internal static class Program
     {
-        private const string Version = "1.0.0";
+        private const string Version = "1.1.0";
 
         [STAThread]
         private static void Main(string[] args)
@@ -168,6 +168,7 @@ namespace LivePixListener
             _tray.DoubleClick += delegate { ShowSettings(); };
 
             var menu = new ContextMenuStrip();
+            menu.Items.Add("Alertas", null, delegate { ShowSettings(); });
             menu.Items.Add("Configurações", null, delegate { ShowSettings(); });
             menu.Items.Add("Testar som", null, delegate { _form.TestFromTray(); });
             menu.Items.Add("Sobre", null, delegate { ShowAbout(); });
@@ -177,6 +178,7 @@ namespace LivePixListener
 
             SingleInstance.Bind(_form, ShowSettings);
             _form.LoadFrom(_config);
+            _form.ShowHistory(AlertHistory.Load());
             SetTip("Iniciando");
 
             if (string.IsNullOrWhiteSpace(_config.WidgetUrl))
@@ -265,6 +267,16 @@ namespace LivePixListener
                 var body = string.IsNullOrWhiteSpace(alert.Detail) ? "Nova mensagem." : alert.Detail.Trim();
                 if (body.Length > 180) body = body.Substring(0, 177) + "...";
                 try { _tray.ShowBalloonTip(5000, title, body, ToolTipIcon.Info); } catch { }
+
+                var record = new AlertRecord();
+                record.Id = alert.Id ?? "";
+                record.At = DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+                record.Name = string.IsNullOrWhiteSpace(alert.Title) ? "Alerta" : alert.Title.Trim();
+                record.Amount = alert.Amount ?? "";
+                record.Message = string.IsNullOrWhiteSpace(alert.Detail) ? "" : alert.Detail.Trim();
+                if (record.Message.Length > 500) record.Message = record.Message.Substring(0, 500);
+                if (AlertHistory.Add(record))
+                    _form.AddAlert(record);
             });
         }
 
@@ -322,17 +334,21 @@ namespace LivePixListener
         private readonly Label _volumeValue;
         private readonly CheckBox _startup;
         private readonly Label _status;
+        private readonly Label _alertTitle;
+        private readonly Label _alertEmpty;
+        private readonly ListView _alerts;
         private bool _allowClose;
 
         public SettingsForm(AppHost host)
         {
             _host = host;
             Text = "LivePix Listener";
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
             MinimizeBox = true;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(520, 430);
+            ClientSize = new Size(560, 640);
+            MinimumSize = new Size(520, 560);
             BackColor = UiTheme.Background;
             Font = new Font("Segoe UI", 10f);
             ShowInTaskbar = false;
@@ -374,8 +390,38 @@ namespace LivePixListener
             var test = ButtonOf("Testar som", 176, 318, false);
             test.Click += delegate { TestFromTray(); };
 
-            _status = LabelOf(" ", 20, 368, 480, 48);
+            _status = LabelOf(" ", 20, 364, 520, 36);
             _status.ForeColor = UiTheme.Muted;
+            _status.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
+
+            _alertTitle = LabelOf("Alertas", 20, 404, 300, 24);
+            _alertTitle.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+
+            var clear = ButtonOf("Limpar", 396, 398, false);
+            clear.Width = 144;
+            clear.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            clear.Click += delegate { ClearAlerts(); };
+
+            _alerts = new ListView();
+            _alerts.View = View.Details;
+            _alerts.FullRowSelect = true;
+            _alerts.GridLines = false;
+            _alerts.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            _alerts.BorderStyle = BorderStyle.FixedSingle;
+            _alerts.Font = new Font("Segoe UI", 9.5f);
+            _alerts.SetBounds(20, 434, 520, 186);
+            _alerts.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
+            _alerts.Columns.Add("Quando", 128);
+            _alerts.Columns.Add("Nome", 130);
+            _alerts.Columns.Add("Valor", 90);
+            _alerts.Columns.Add("Mensagem", 150);
+            var alertMenu = new ContextMenuStrip();
+            alertMenu.Items.Add("Copiar", null, delegate { CopySelectedAlert(); });
+            _alerts.ContextMenuStrip = alertMenu;
+
+            _alertEmpty = LabelOf("Quando um alerta tocar, ele fica guardado aqui.", 28, 470, 480, 40);
+            _alertEmpty.ForeColor = UiTheme.Muted;
+            _alertEmpty.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
 
             Controls.Add(title);
             Controls.Add(hint);
@@ -388,6 +434,10 @@ namespace LivePixListener
             Controls.Add(save);
             Controls.Add(test);
             Controls.Add(_status);
+            Controls.Add(_alertTitle);
+            Controls.Add(clear);
+            Controls.Add(_alerts);
+            Controls.Add(_alertEmpty);
             AcceptButton = save;
 
             if (!IsHandleCreated)
@@ -403,6 +453,27 @@ namespace LivePixListener
             _volume.Value = volume;
             _startup.Checked = config.StartWithWindows;
             UpdateVolumeLabel();
+        }
+
+        public void ShowHistory(AlertRecord[] records)
+        {
+            _alerts.BeginUpdate();
+            _alerts.Items.Clear();
+            if (records != null)
+            {
+                for (int i = 0; i < records.Length; i++)
+                    _alerts.Items.Add(ItemFor(records[i]));
+            }
+            _alerts.EndUpdate();
+            UpdateAlertHeading();
+            FitMessageColumn();
+        }
+
+        public void AddAlert(AlertRecord record)
+        {
+            _alerts.Items.Insert(0, ItemFor(record));
+            UpdateAlertHeading();
+            FitMessageColumn();
         }
 
         public void ShowFromTray()
@@ -435,6 +506,62 @@ namespace LivePixListener
         public void AllowClose()
         {
             _allowClose = true;
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            FitMessageColumn();
+        }
+
+        private void FitMessageColumn()
+        {
+            if (_alerts == null || _alerts.Columns.Count < 4) return;
+            var used = _alerts.Columns[0].Width + _alerts.Columns[1].Width + _alerts.Columns[2].Width + 28;
+            var rest = _alerts.ClientSize.Width - used;
+            if (rest > 80) _alerts.Columns[3].Width = rest;
+        }
+
+        private void UpdateAlertHeading()
+        {
+            var count = _alerts.Items.Count;
+            _alertTitle.Text = count == 0 ? "Alertas" : "Alertas (" + count.ToString(CultureInfo.InvariantCulture) + ")";
+            _alertEmpty.Visible = count == 0;
+        }
+
+        private static ListViewItem ItemFor(AlertRecord record)
+        {
+            var item = new ListViewItem(record.At ?? "");
+            item.SubItems.Add(record.Name ?? "");
+            item.SubItems.Add(record.Amount ?? "");
+            item.SubItems.Add(record.Message ?? "");
+            return item;
+        }
+
+        private void CopySelectedAlert()
+        {
+            if (_alerts.SelectedItems.Count == 0) return;
+            var item = _alerts.SelectedItems[0];
+            var text = item.SubItems[1].Text;
+            if (!string.IsNullOrEmpty(item.SubItems[2].Text))
+                text = text + " " + item.SubItems[2].Text;
+            if (!string.IsNullOrEmpty(item.SubItems[3].Text))
+                text = text + ": " + item.SubItems[3].Text;
+            try { Clipboard.SetText(text); } catch { }
+        }
+
+        private void ClearAlerts()
+        {
+            if (_alerts.Items.Count == 0) return;
+            var answer = MessageBox.Show(
+                "Apagar o histórico de alertas deste computador?",
+                "Limpar alertas",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes) return;
+            AlertHistory.Clear();
+            _alerts.Items.Clear();
+            UpdateAlertHeading();
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -520,6 +647,8 @@ namespace LivePixListener
 
     internal sealed class Alert
     {
+        public string Id;
+        public string Amount;
         public string SoundUrl;
         public double SoundVolume;
         public double SoundSeconds;
@@ -1048,9 +1177,11 @@ namespace LivePixListener
             alert.MinSeconds = JsonMap.ToDouble(JsonMap.Get(config, "minimumDuration"), 0);
             alert.MaxSeconds = JsonMap.ToDouble(JsonMap.Get(config, "maximumDuration"), 60);
 
+            alert.Id = JsonMap.Get(payload, "alertId") as string;
             var inner = JsonMap.Get(data, "data") as Dictionary<string, object>;
-            alert.Title = JsonMap.FirstString(inner, new string[] { "username", "userName", "name", "displayName", "author" });
-            alert.Detail = JsonMap.FirstString(inner, new string[] { "message", "text", "content" });
+            alert.Title = JsonMap.FirstText(inner, new string[] { "username", "userName", "name", "displayName", "author" });
+            alert.Detail = JsonMap.FirstText(inner, new string[] { "message", "text", "content" });
+            alert.Amount = JsonMap.FirstText(inner, new string[] { "formattedAmount", "amountFormatted", "amount", "value", "price" });
             return alert;
         }
 
@@ -1247,6 +1378,58 @@ namespace LivePixListener
             }
             return null;
         }
+
+        public static string FirstText(Dictionary<string, object> map, string[] keys)
+        {
+            return FindText(map, keys, 0);
+        }
+
+        private static string FindText(object node, string[] keys, int depth)
+        {
+            var map = node as Dictionary<string, object>;
+            if (map == null || keys == null || depth > 3) return null;
+            for (int i = 0; i < keys.Length; i++)
+            {
+                foreach (var pair in map)
+                {
+                    if (!string.Equals(pair.Key, keys[i], StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    var text = DisplayOf(pair.Value);
+                    if (!string.IsNullOrWhiteSpace(text)) return text;
+                }
+            }
+            foreach (var pair in map)
+            {
+                var nested = FindText(pair.Value, keys, depth + 1);
+                if (!string.IsNullOrWhiteSpace(nested)) return nested;
+            }
+            return null;
+        }
+
+        private static string DisplayOf(object value)
+        {
+            if (value == null || value is bool) return null;
+            var text = value as string;
+            if (text != null)
+            {
+                text = text.Trim();
+                if (text.Length == 0) return null;
+                if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                    || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    return null;
+                return text;
+            }
+            if (value is int || value is long || value is decimal || value is double || value is float)
+            {
+                var number = ToDouble(value, double.NaN);
+                if (double.IsNaN(number)) return null;
+                var culture = CultureInfo.GetCultureInfo("pt-BR");
+                if (Math.Abs(number - Math.Round(number)) < 0.001)
+                    return Math.Round(number).ToString("0", culture);
+                return number.ToString("0.00", culture);
+            }
+            return null;
+        }
     }
 
     internal static class Net
@@ -1376,6 +1559,84 @@ namespace LivePixListener
             WidgetUrl = "";
             Volume = 100;
             StartWithWindows = false;
+        }
+    }
+
+    internal sealed class AlertRecord
+    {
+        public string Id { get; set; }
+        public string At { get; set; }
+        public string Name { get; set; }
+        public string Amount { get; set; }
+        public string Message { get; set; }
+    }
+
+    internal static class AlertHistory
+    {
+        private const int MaxItems = 200;
+        private static readonly object Gate = new object();
+        private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
+
+        public static AlertRecord[] Load()
+        {
+            lock (Gate)
+            {
+                return Read().ToArray();
+            }
+        }
+
+        public static bool Add(AlertRecord record)
+        {
+            if (record == null) return false;
+            lock (Gate)
+            {
+                var items = Read();
+                if (!string.IsNullOrEmpty(record.Id))
+                {
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if (string.Equals(items[i].Id, record.Id, StringComparison.Ordinal))
+                            return false;
+                    }
+                }
+                items.Insert(0, record);
+                while (items.Count > MaxItems)
+                    items.RemoveAt(items.Count - 1);
+                Write(items);
+                return true;
+            }
+        }
+
+        public static void Clear()
+        {
+            lock (Gate)
+            {
+                Write(new List<AlertRecord>());
+            }
+        }
+
+        private static List<AlertRecord> Read()
+        {
+            try
+            {
+                var path = Path.Combine(ConfigStore.Dir(), "alerts.json");
+                if (!File.Exists(path)) return new List<AlertRecord>();
+                Json.MaxJsonLength = int.MaxValue;
+                var items = Json.Deserialize<List<AlertRecord>>(File.ReadAllText(path, Encoding.UTF8));
+                if (items == null) return new List<AlertRecord>();
+                return items;
+            }
+            catch (Exception ex)
+            {
+                Logger.Write("historico " + ex.Message);
+                return new List<AlertRecord>();
+            }
+        }
+
+        private static void Write(List<AlertRecord> items)
+        {
+            var path = Path.Combine(ConfigStore.Dir(), "alerts.json");
+            File.WriteAllText(path, Json.Serialize(items), Encoding.UTF8);
         }
     }
 
