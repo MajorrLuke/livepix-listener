@@ -4,11 +4,13 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
+using Microsoft.Win32;
 using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -28,6 +30,14 @@ namespace LivePixListener
         {
             Net.Configure();
             Logger.CleanTemp();
+
+            if (HasFlag(args, "--uninstall"))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                AppUninstall.Run(HasFlag(args, "--quiet"));
+                return;
+            }
 
             if (HasFlag(args, "--probe"))
             {
@@ -1428,6 +1438,68 @@ namespace LivePixListener
             type.InvokeMember("WindowStyle", BindingFlags.SetProperty, null, shortcut, new object[] { 7 });
             type.InvokeMember("Description", BindingFlags.SetProperty, null, shortcut, new object[] { "LivePix Listener" });
             type.InvokeMember("Save", BindingFlags.InvokeMethod, null, shortcut, null);
+        }
+    }
+
+    internal static class AppUninstall
+    {
+        public static void Run(bool quiet)
+        {
+            if (!quiet)
+            {
+                var answer = MessageBox.Show(
+                    "Remover o LivePix Listener deste usuário?" + Environment.NewLine + Environment.NewLine +
+                    "O atalho de iniciar com o Windows sai junto. O link do widget continua salvo.",
+                    "Remover LivePix Listener",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+                if (answer != DialogResult.Yes) return;
+            }
+
+            var self = Process.GetCurrentProcess();
+            var others = Process.GetProcessesByName("LivePixListener");
+            for (int i = 0; i < others.Length; i++)
+            {
+                if (others[i].Id == self.Id) continue;
+                try
+                {
+                    others[i].Kill();
+                    others[i].WaitForExit(3000);
+                }
+                catch { }
+            }
+
+            DeleteShortcut(Environment.SpecialFolder.Startup);
+            DeleteShortcut(Environment.SpecialFolder.Programs);
+            DeleteShortcut(Environment.SpecialFolder.Desktop);
+
+            try
+            {
+                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\LivePixListener", false);
+            }
+            catch { }
+
+            var exe = Application.ExecutablePath;
+            var dir = Path.GetDirectoryName(exe);
+            var scriptPath = Path.Combine(Path.GetTempPath(), "livepix-uninstall-" + Guid.NewGuid().ToString("N") + ".cmd");
+            var script = "@echo off\r\nping 127.0.0.1 -n 3 > nul\r\ndel /f /q \"" + exe + "\"\r\nrd \"" + dir + "\" 2>nul\r\ndel /f /q \"%~f0\"\r\n";
+            File.WriteAllText(scriptPath, script, Encoding.ASCII);
+            var info = new ProcessStartInfo();
+            info.FileName = scriptPath;
+            info.WindowStyle = ProcessWindowStyle.Hidden;
+            info.CreateNoWindow = true;
+            info.UseShellExecute = false;
+            Process.Start(info);
+        }
+
+        private static void DeleteShortcut(Environment.SpecialFolder folder)
+        {
+            try
+            {
+                var path = Path.Combine(Environment.GetFolderPath(folder), "LivePix Listener.lnk");
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch { }
         }
     }
 

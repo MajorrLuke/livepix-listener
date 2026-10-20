@@ -8,16 +8,20 @@ Não é um programa oficial do LivePix.
 
 ## Baixar
 
-O arquivo pronto está em [`dist/LivePixListener.exe`](dist/LivePixListener.exe). Não precisa instalar Node, Python nem .NET: o Windows 10 e o 11 já têm o que ele usa.
+Baixe o `LivePixListener-Setup.exe` na página de Releases. Ele instala só para o seu usuário, sem senha de administrador.
 
-SHA256: `4a1b303452fc46f2eaec60d2a3ab8fc6b86430f0d4b7efd580a35b84c7c000f7`
+SHA256: `1a9a29dc5424ab73b397200f1c7ca2cf675ac0d4ce66bf349fa61b26d03e453c`
 
-O Windows pode mostrar o SmartScreen, porque o exe não é assinado. Em **Mais informações**, escolha **Executar mesmo assim**.
+Na instalação, **Iniciar com o Windows** já vem marcado. Pode desmarcar. Depois dá para mudar de novo na janela do programa, no ícone da bandeja.
+
+O Windows pode mostrar o SmartScreen, porque o instalador não é assinado. Em **Mais informações**, escolha **Executar mesmo assim**.
+
+Para remover: Configurações do Windows, Aplicativos, LivePix Listener. O link do widget continua salvo.
 
 ## Usar
 
-1. No LivePix, copie o link do widget de **notificação**. É o mesmo link que está no navegador do OBS, no formato `https://widget.livepix.gg/embed/...`.
-2. Abra o `LivePixListener.exe`.
+1. Instale e, se quiser, deixe marcado **Iniciar com o Windows**.
+2. No LivePix, copie o link do widget de **notificação**. É o mesmo link que está no navegador do OBS, no formato `https://widget.livepix.gg/embed/...`.
 3. Cole o link, ajuste o volume e clique em **Salvar**.
 4. Feche a janela. O ícone verde fica na bandeja, perto do relógio. Se não aparecer, olhe na seta `^`.
 5. Deixe o widget no OBS do PC da live, como já estava.
@@ -28,7 +32,7 @@ O volume da janela multiplica o volume que você já configurou no LivePix. `100
 
 **Testar som** baixa e toca o som de alerta desse widget, sem esperar uma doação.
 
-**Iniciar com o Windows** cria um atalho na pasta Inicializar do seu usuário. Se você mover o exe, marque a opção de novo.
+**Iniciar com o Windows** cria um atalho na pasta Inicializar do seu usuário. Se a instalação já marcou isso, a opção aparece ligada.
 
 Abrir o programa uma segunda vez só traz a janela de volta. Para sair de verdade, use **Sair** no menu do ícone.
 
@@ -56,7 +60,7 @@ No Windows 10 ou 11, com o .NET Framework que já vem no sistema:
 build.bat
 ```
 
-O exe sai em `dist\LivePixListener.exe`.
+O programa sai em `dist\LivePixListener.exe` e o instalador em `dist\LivePixListener-Setup.exe`.
 
 Para ver o canal no console: `LivePixListener.exe --probe "https://widget.livepix.gg/embed/SEU-ID"`.
 

@@ -19,8 +19,19 @@ if not exist dist mkdir dist
   src\Program.cs
 if errorlevel 1 (
   echo.
-  echo A compilacao falhou.
+  echo A compilacao do programa falhou.
+  exit /b 1
+)
+"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /win32manifest:app.manifest /out:dist\LivePixListener-Setup.exe ^
+  /resource:dist\LivePixListener.exe,Payload.exe ^
+  /reference:"%REF%\System.Windows.Forms.dll" ^
+  /reference:"%REF%\System.Drawing.dll" ^
+  /reference:"%REF%\System.Web.Extensions.dll" ^
+  src\Setup.cs
+if errorlevel 1 (
+  echo.
+  echo A compilacao do instalador falhou.
   exit /b 1
 )
 echo.
-echo Pronto: dist\LivePixListener.exe
+echo Pronto: dist\LivePixListener-Setup.exe
